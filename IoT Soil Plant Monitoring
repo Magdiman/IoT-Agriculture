@@ -1,0 +1,169 @@
+#include <SoftwareSerial.h>
+#include <Wire.h>
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+#define BLYNK_AUTH_TOKEN "JrRDriSDMCQ7EZtkmTGqgtoyepZruxzv"  // Replace with your Blynk authentication token
+
+char ssid[] = "IoT";            // Replace with your WiFi SSID
+char pass[] = "";        // Replace with your WiFi password
+
+#define ONE_WIRE_BUS D1
+#define RE D2
+#define DE D3
+
+int soilMoistureValue = 0;
+int soilMoisturePercent = 0;
+
+float temperature;
+
+//const byte code[]= {0x01, 0x03, 0x00, 0x1e, 0x00, 0x03, 0x65, 0xCD};
+const byte nitro[] = {0x01,0x03, 0x00, 0x1e, 0x00, 0x01, 0xe4, 0x0c};
+const byte phos[] = {0x01,0x03, 0x00, 0x1f, 0x00, 0x01, 0xb5, 0xcc};
+const byte pota[] = {0x01,0x03, 0x00, 0x20, 0x00, 0x01, 0x85, 0xc0};
+ 
+byte values[11];
+SoftwareSerial mod(D6, D5); // RX, TX
+
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
+struct MyVariable
+{
+  byte soilMoisturePercent;
+  byte nitrogen;
+  byte phosphorous;
+  byte potassium;
+};
+MyVariable variable;
+
+void setup()
+{
+  Serial.begin(9600);
+  mod.begin(9600);
+  pinMode(RE, OUTPUT);
+  pinMode(DE, OUTPUT);
+  
+  delay(500);
+
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  sensors.begin();  // Add this line to initialize the DallasTemperature sensors
+
+  pinMode(A0, INPUT);  // Add this line to set A0 as an input pin
+}
+
+
+
+
+
+
+void loop()
+{
+  Blynk.run();
+  
+  byte val1,val2,val3;
+  val1 = nitrogen();
+  delay(250);
+  val2 = phosphorous();
+  delay(250);
+  val3 = potassium();
+  delay(250);
+
+  sensors.requestTemperatures();
+  temperature = sensors.getTempCByIndex(0);
+
+  soilMoistureValue = analogRead(A0);
+  soilMoisturePercent = map(soilMoistureValue, 185, 515, 0, 100);
+  soilMoisturePercent = constrain(soilMoisturePercent, 0, 100);
+
+  variable.soilMoisturePercent = soilMoisturePercent;
+  variable.nitrogen = val1;         // Update with the value from the NPK sensor
+  variable.phosphorous = val2;      // Update with the value from the NPK sensor
+  variable.potassium = val3;        // Update with the value from the NPK sensor
+
+  Serial.print("Soil Moisture: ");
+  Serial.print(variable.soilMoisturePercent);
+  Serial.println("%");
+
+ // Print values to the serial monitor
+  Serial.print("Nitrogen: ");
+  Serial.print(val1);
+  Serial.println(" mg/kg");
+  Serial.print("Phosphorous: ");
+  Serial.print(val2);
+  Serial.println(" mg/kg");
+  Serial.print("Potassium: ");
+  Serial.print(val3);
+  Serial.println(" mg/kg");
+  
+
+
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.println("*C");
+
+
+
+
+  Blynk.virtualWrite(V0, variable.soilMoisturePercent);
+  Blynk.virtualWrite(V1, variable.nitrogen);
+  Blynk.virtualWrite(V2, variable.phosphorous);
+  Blynk.virtualWrite(V3, variable.potassium);
+  Blynk.virtualWrite(V4, temperature);
+
+  delay(1000);
+}
+
+byte nitrogen(){
+  digitalWrite(DE,HIGH);
+  digitalWrite(RE,HIGH);
+  delay(10);
+  if(mod.write(nitro,sizeof(nitro))==8){
+    digitalWrite(DE,LOW);
+    digitalWrite(RE,LOW);
+    for(byte i=0;i<7;i++){
+    //Serial.print(mod.read(),HEX);
+    values[i] = mod.read();
+    //Serial.print(values[i],HEX);
+    }
+    //Serial.println();
+  }
+  return values[4];
+}
+ 
+byte phosphorous(){
+  digitalWrite(DE,HIGH);
+  digitalWrite(RE,HIGH);
+  delay(10);
+  if(mod.write(phos,sizeof(phos))==8){
+    digitalWrite(DE,LOW);
+    digitalWrite(RE,LOW);
+    for(byte i=0;i<7;i++){
+    //Serial.print(mod.read(),HEX);
+    values[i] = mod.read();
+    //Serial.print(values[i],HEX);
+    }
+    //Serial.println();
+  }
+  return values[4];
+}
+ 
+byte potassium(){
+  digitalWrite(DE,HIGH);
+  digitalWrite(RE,HIGH);
+  delay(10);
+  if(mod.write(pota,sizeof(pota))==8){
+    digitalWrite(DE,LOW);
+    digitalWrite(RE,LOW);
+    for(byte i=0;i<7;i++){
+    //Serial.print(mod.read(),HEX);
+    values[i] = mod.read();
+    //Serial.print(values[i],HEX);
+    }
+    Serial.println();
+  }
+  return values[4];
+}
